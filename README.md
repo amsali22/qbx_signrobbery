@@ -14,7 +14,8 @@
     client = {
         image = 'stolen_sign.png',
     }
- }```
+ }
+```
 
  item image : [Imgur](https://imgur.com/e2NWzb1)
 
