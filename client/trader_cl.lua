@@ -39,9 +39,9 @@ function createTraderPed()
         {
             name = 'trade_materials',
             icon = 'fas fa-recycle',
-            label = 'Trade Stolen Signs',
+            label = 'Trade Items',
             onSelect = function()
-                openTradeMenu()
+                openTradeSelectionMenu()
             end,
             canInteract = function()
                 return true
@@ -50,44 +50,107 @@ function createTraderPed()
     })
 end
 
-function openTradeMenu()
+--[[ Thanks copilot for doing this function for me as my brain cant think of all this %a [%W_ ] or what ever is this bull shit (if you are asking what is this for is to)
+write better item names and text by example my item name is stolen_sign we dont type "trade stolen_sign" but we make it type "trade stolen sign" instead   ]]
+function formatItemName(itemName)
+    -- Remove special characters and replace underscores with spaces
+    local formatted = itemName:gsub("%*", "")
+    formatted = formatted:gsub("_", " ")
+    
+    -- Capitalize first letter of each word
+    formatted = formatted:gsub("(%a)([%w_']*)", function(first, rest)
+        return first:upper() .. rest:lower()
+    end)
+    
+    return formatted
+end
+
+function openTradeSelectionMenu()
+    local options = {}
+    
+    -- Check if player has any of the tradable items
+    local hasItems = false
+    for _, itemName in ipairs(config.itemRequiredForTrade) do
+        local count = exports.ox_inventory:Search('count', itemName)
+        if count > 0 then
+            hasItems = true
+            -- Add each tradable item as an option
+            options[#options + 1] = {
+                title = ('Trade %s'):format(formatItemName(itemName)),
+                description = ('You have %d %s'):format(count, formatItemName(itemName)),
+                onSelect = function()
+                    openTradeMenu(itemName)
+                end,
+            }
+        end
+    end
+    
+    -- If player has no tradable items, show notification instead
+    if not hasItems then
+        lib.notify({
+            id = 'trade_error',
+            title = 'No tradable items',
+            description = 'You don\'t have any items that can be traded.',
+            type = 'error'
+        })
+        return
+    end
+    
+    lib.registerContext({
+        id = 'trade_selection_menu',
+        title = 'Select Item to Trade',
+        options = options
+    })
+    
+    lib.showContext('trade_selection_menu')
+end
+
+function openTradeMenu(tradableItem)
     local options = {}
     
     for _, item in ipairs(config.tradableItems) do
-        table.insert(options, {
-            title = item.itemtoreceive:gsub("^%l", string.upper),
-            description = ('Trade 1 ' .. "Sign" .. '  for %s %s'):format(item.amounttoreceive, item.itemtoreceive),
+        options[#options + 1] = {
+            title = formatItemName(item.itemtoreceive),
+            description = ('Trade 1 %s for %s %s'):format(
+                formatItemName(tradableItem),
+                item.amounttoreceive,
+                formatItemName(item.itemtoreceive)
+            ),
             onSelect = function()
-                local count = exports.ox_inventory:Search('count', config.itemRequiredForTrade)
+                local count = exports.ox_inventory:Search('count', tradableItem)
                 if count > 0 then
-                    openInputDialog(item, count)
+                    openInputDialog(item, count, tradableItem)
                 else
                     lib.notify({
                         id = 'trade_error',
                         title = 'Trade Failed',
-                        description = 'You don\'t have any signs to trade.',
+                        description = ('You don\'t have any %s to trade.'):format(formatItemName(tradableItem)),
                         type = 'error'
                     })
                 end
             end,
-        })
+        }
     end
     
     lib.registerContext({
         id = 'trade_menu',
-        title = 'Trade Stolen Signs',
+        title = ('Trade %s'):format(formatItemName(tradableItem)),
         options = options
     })
     
     lib.showContext('trade_menu')
 end
 
-function openInputDialog(item, maxCount)
+function openInputDialog(item, maxCount, tradableItem)
     local input = lib.inputDialog('Select Amount', {
         {
             type = 'slider',
             label = 'Amount',
-            description = ('Trade signs for %s (Max: %s)'):format(item.itemtoreceive, maxCount),
+            description = ('Trade %s for %s (Max: %s)'):format(
+                formatItemName(tradableItem),
+                formatItemName(item.itemtoreceive),
+                maxCount
+            ),
             default = 1,
             min = 1,
             max = maxCount
@@ -96,17 +159,20 @@ function openInputDialog(item, maxCount)
     
     if input then
         local amount = input[1]
-        executeTradeTransaction(item, amount)
+        executeTradeTransaction(item, amount, tradableItem)
     end
 end
 
-function executeTradeTransaction(item, amount)
+function executeTradeTransaction(item, amount, tradableItem)
     lib.callback('trader_ped:tradeItems', false, function(success, reason)
         if success then
             lib.notify({
                 id = 'trade_success',
                 title = 'Trade Successful',
-                description = ('You received %s %s'):format(amount * item.amounttoreceive, item.itemtoreceive),
+                description = ('You received %s %s'):format(
+                    amount * item.amounttoreceive,
+                    formatItemName(item.itemtoreceive)
+                ),
                 type = 'success'
             })
         else
@@ -126,5 +192,5 @@ function executeTradeTransaction(item, amount)
                 })
             end
         end
-    end, item, amount)
+    end, item, amount, tradableItem)
 end

@@ -37,6 +37,19 @@ local function alertCops(coords)
     })
 end
 
+-- Function to get sign item from prop model
+local function getSignItemFromModel(entityModel)
+    local modelHash = GetEntityModel(entityModel)
+    
+    for _, sign in ipairs(config.signProps) do
+        if GetHashKey(sign.prop) == modelHash then
+            return sign.item
+        end
+    end
+    
+    return nil -- No matching sign found
+end
+
 -- Function to create a robbery animation and give rewards
 local function robberyAnimation(entity)
     local ped = PlayerPedId()
@@ -53,6 +66,13 @@ local function robberyAnimation(entity)
             description = 'This sign has been stolen recently',
             type = 'error'
         })
+        return
+    end
+    
+    -- Get the specific item for this sign
+    local signItem = getSignItemFromModel(entity)
+    if not signItem then
+        print("Error: Could not determine sign item for this entity")
         return
     end
     
@@ -92,33 +112,34 @@ local function robberyAnimation(entity)
             })
             return
         else
-        --- alert cops
-        alertCops(coords)
+            --- alert cops
+            alertCops(coords)
 
-        lib.progressCircle({
-        duration = 5000,
-        label = 'taking the sign',
-        useWhileDead = false,
-        canCancel = true,
-        position = 'bottom',
-        disable = {
-            car = true,
-            move = true,
-            combat = true,
-            mouse = false
-        },
-        anim = {
-            dict = 'amb@prop_human_bum_bin@base',
-            clip = 'base'
-        }, })
+            lib.progressCircle({
+                duration = 5000,
+                label = 'Taking the sign',
+                useWhileDead = false,
+                canCancel = true,
+                position = 'bottom',
+                disable = {
+                    car = true,
+                    move = true,
+                    combat = true,
+                    mouse = false
+                },
+                anim = {
+                    dict = 'amb@prop_human_bum_bin@base',
+                    clip = 'base'
+                }, 
+            })
 
-        -- Success, give reward
-        TriggerServerEvent('sign_robbery:stealSign')
-        cooldowns[entityKey] = GetGameTimer()  
-        -- Delete sign temporarily (will Respawn after server cleanup)
-        SetEntityAsMissionEntity(entity, true, true)
-        DeleteEntity(entity)
-    end
+            -- Success, give reward
+            TriggerServerEvent('sign_robbery:stealSign', signItem)
+            cooldowns[entityKey] = GetGameTimer()  
+            -- Delete sign temporarily (will Respawn after server cleanup)
+            SetEntityAsMissionEntity(entity, true, true)
+            DeleteEntity(entity)
+        end
     end
     
     RemoveAnimDict('amb@prop_human_bum_bin@base')
@@ -129,9 +150,9 @@ local function createTargets()
     if targetsCreated then return end
 
     for _, sign in ipairs(config.signProps) do
-        exports.ox_target:addModel(sign, {
+        exports.ox_target:addModel(sign.prop, {
             {
-                name = 'steal_sign',
+                name = 'steal_sign_' .. sign.prop,
                 icon = 'fas fa-hand-paper',
                 label = 'Steal Sign',
                 onSelect = function(data)

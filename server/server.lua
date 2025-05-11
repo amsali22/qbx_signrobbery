@@ -2,11 +2,26 @@ local config = require 'shared.config'
 local stolenSigns = {}
 
 -- Register server event for stealing signs
-RegisterNetEvent('sign_robbery:stealSign', function()
+RegisterNetEvent('sign_robbery:stealSign', function(signItem)
+    local source = source
     
     -- Anti-spam logic
     if stolenSigns[source] and (os.time() - stolenSigns[source]) < 5 then
         -- Player is trying to spam the event
+        return
+    end
+    
+    -- Validate that the signItem is a valid sign type
+    local validSignItem = false
+    for _, sign in ipairs(config.signProps) do
+        if sign.item == signItem then
+            validSignItem = true
+            break
+        end
+    end
+    
+    if not validSignItem then
+        print("Invalid sign item received from player: " .. tostring(signItem))
         return
     end
     
@@ -16,14 +31,12 @@ RegisterNetEvent('sign_robbery:stealSign', function()
         if hasItem <= 0 then
             return -- Player doesn't have the required item
         end
-        
-        -- We don't remove the item, just check if player has it
     end
     
     -- Check if player can carry the stolen sign
-    if exports.ox_inventory:CanCarryItem(source, config.itemRequiredForTrade, 1) then
-        -- Add the stolen sign to player's inventory
-        exports.ox_inventory:AddItem(source, config.itemRequiredForTrade, 1)
+    if exports.ox_inventory:CanCarryItem(source, signItem, 1) then
+        -- Add the specific stolen sign type to player's inventory
+        exports.ox_inventory:AddItem(source, signItem, 1)
         
         -- Add player to cooldown
         stolenSigns[source] = os.time()
@@ -31,7 +44,7 @@ RegisterNetEvent('sign_robbery:stealSign', function()
         -- Notify player
         TriggerClientEvent('ox_lib:notify', source, {
             title = 'Sign Robbery',
-            description = 'You stole a sign!',
+            description = 'You stole a ' .. signItem:gsub("_", " ") .. '!',
             type = 'success'
         })
     else
